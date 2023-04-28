@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">x86</Platform>
+    <ProjectGuid>{508396AB-8C4A-48FF-98C2-601FF110C4E3}</ProjectGuid>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>OpenPgpMailProxy</RootNamespace>
+    <AssemblyName>OpenPgpMailProxy</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug</OutputPath>
+    <DefineConstants>DEBUG;</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <ExternalConsole>true</ExternalConsole>
+    <PlatformTarget>x86</PlatformTarget>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x86' ">
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release</OutputPath>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <ExternalConsole>true</ExternalConsole>
+    <PlatformTarget>x86</PlatformTarget>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="ThrowException.CSharpLibs.BytesUtilLib">
+      <HintPath>..\packages\ThrowException.CSharpLibs.BytesUtilLib.1.1.0\lib\net48\ThrowException.CSharpLibs.BytesUtilLib.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Core" />
+    <Reference Include="ThrowException.CSharpLibs.TypeParserLib">
+      <HintPath>..\packages\ThrowException.CSharpLibs.TypeParserLib.1.1.0\lib\net48\ThrowException.CSharpLibs.TypeParserLib.dll</HintPath>
+    </Reference>
+    <Reference Include="ThrowException.CSharpLibs.ConfigParserLib">
+      <HintPath>..\packages\ThrowException.CSharpLibs.ConfigParserLib.1.1.1\lib\net48\ThrowException.CSharpLibs.ConfigParserLib.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Xml.Linq" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Session.cs" />
+    <Compile Include="Server.cs" />
+    <Compile Include="Pop3Session.cs" />
+    <Compile Include="Context.cs" />
+    <Compile Include="TlsClient.cs" />
+    <Compile Include="Pop3Server.cs" />
+    <Compile Include="Config.cs" />
+    <Compile Include="SmtpSession.cs" />
+    <Compile Include="SmtpServer.cs" />
+    <Compile Include="IMailQueue.cs" />
+    <Compile Include="Envelope.cs" />
+    <Compile Include="MemoryMailQueue.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
+  </ItemGroup>
+  <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
+</Project>

@@ -29,13 +29,18 @@ namespace OpenPgpMailProxy
 
             var queue = new MemoryMailQueue();
 
-            var pop3IpAddress = IPAddress.Parse(config.Pop3Server.BindAddress);
-            var pop3EndPoint = new IPEndPoint(pop3IpAddress, config.Pop3Server.BindPort);
-            var pop3Server = new Pop3Server(context, pop3EndPoint, queue);
+            var pop3IpAddress = IPAddress.Parse(config.Pop3BindAddress);
+            var pop3EndPoint = new IPEndPoint(pop3IpAddress, config.Pop3BindPort);
+            var pop3Server = new Pop3Server(context, pop3EndPoint);
 
-            var smtpIpAddress = IPAddress.Parse(config.SmtpServer.BindAddress);
-            var smtpEndpoint = new IPEndPoint(smtpIpAddress, config.SmtpServer.BindPort);
-            var smtpServer = new SmtpServer(context, smtpEndpoint, queue);
+            var smtpIpAddress = IPAddress.Parse(config.SmtpBindAddress);
+            var smtpEndpoint = new IPEndPoint(smtpIpAddress, config.SmtpBindPort);
+            var smtpServer = new SmtpServer(context, smtpEndpoint);
+
+            var processTask = new MailProcessTask(context, new NopMailProcessor(), new NopMailProcessor());
+            var sendTask = new SmtpSendTask(context);
+            var recieveTask = new Pop3RecieveTask(context);
+            var runner = new TaskRunner(processTask, sendTask, recieveTask);
 
             while (true)
             {

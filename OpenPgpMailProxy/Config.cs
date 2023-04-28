@@ -1,80 +1,51 @@
 ﻿using System;
+using System.Collections.Generic;
 using ThrowException.CSharpLibs.ConfigParserLib;
 
 namespace OpenPgpMailProxy
 {
     public class Config : IConfig
     {
-        [Setting]
-        public Pop3ServerConfig Pop3Server { get; private set; }
+        [Setting(Name = "Mailbox")]
+        public IEnumerable<MailboxConfig> Mailboxes { get; private set; }
 
         [Setting]
-        public Pop3ClientConfig Pop3Client { get; private set; }
+        public string SmtpBindAddress { get; private set; }
 
         [Setting]
-        public SmtpServerConfig SmtpServer { get; private set; }
+        public int SmtpBindPort { get; private set; }
 
         [Setting]
-        public SmtpClientConfig SmtpClient { get; private set; }
+        public string Pop3BindAddress { get; private set; }
+
+        [Setting]
+        public int Pop3BindPort { get; private set; }
+
+        [Setting]
+        public string MailboxesPath { get; private set; }
     }
 
-    public class Pop3ClientConfig : IConfig
+    public class MailboxConfig : IConfig
     {
         [Setting]
-        public string ServerAddress { get; private set; }
+        public string Pop3ServerAddress { get; private set; }
 
         [Setting]
-        public int ServerPort { get; private set; }
+        public int Pop3ServerPort { get; private set; }
+
+        [Setting]
+        public string SmtpServerAddress { get; private set; }
+
+        [Setting]
+        public int SmtpServerPort { get; private set; }
 
         [Setting]
         public string Username { get; private set; }
 
         [Setting]
-        public string Password { get; private set; }
-    }
-
-    public class Pop3ServerConfig : IConfig
-    {
-        [Setting]
-        public string BindAddress { get; private set; }
+        public string RemotePassword { get; private set; }
 
         [Setting]
-        public int BindPort { get; private set; }
-
-        [Setting]
-        public string Username { get; private set; }
-
-        [Setting]
-        public string Password { get; private set; }
-    }
-
-    public class SmtpClientConfig : IConfig
-    {
-        [Setting]
-        public string ServerAddress { get; private set; }
-
-        [Setting]
-        public int ServerPort { get; private set; }
-
-        [Setting]
-        public string Username { get; private set; }
-
-        [Setting]
-        public string Password { get; private set; }
-    }
-
-    public class SmtpServerConfig : IConfig
-    {
-        [Setting]
-        public string BindAddress { get; private set; }
-
-        [Setting]
-        public int BindPort { get; private set; }
-
-        [Setting]
-        public string Username { get; private set; }
-
-        [Setting]
-        public string Password { get; private set; }
+        public string LocalPassword { get; private set; }
     }
 }

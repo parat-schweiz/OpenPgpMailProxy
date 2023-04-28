@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace OpenPgpMailProxy
 {
-    public class MemoryMailQueue : IMailQueue
+    public class MemoryMailQueue : IMailbox
     {
         private readonly List<Envelope> _envelopes;
 
@@ -25,6 +25,16 @@ namespace OpenPgpMailProxy
         public IEnumerable<Envelope> List()
         {
             return _envelopes;
+        }
+
+        public void Lock()
+        {
+            System.Threading.Monitor.Enter(_envelopes);
+        }
+
+        public void Release()
+        {
+            System.Threading.Monitor.Exit(_envelopes);
         }
     }
 }

@@ -11,14 +11,14 @@ namespace OpenPgpMailProxy
     {
         private string _username = null;
         private bool _authorized = false;
-        private readonly IMailQueue _queue;
         private Dictionary<Envelope, bool> _entries;
         private int _last = 0;
+        private MailboxConfig _mailboxConfig;
+        private IMailbox _mailbox;
 
-        public Pop3Session(Context context, TcpClient client, IMailQueue queue)
+        public Pop3Session(Context context, TcpClient client)
             : base(context, client)
         {
-            _queue = queue;
             Console.Error.WriteLine("New session");
         }
 
@@ -51,9 +51,18 @@ namespace OpenPgpMailProxy
 
         private bool Authenticate(string password)
         {
-            return
-                (_context.Config.Pop3Server.Username == _username) &&
-                (_context.Config.Pop3Server.Password == password);
+            var mailboxConfig = _context.Config.Mailboxes.SingleOrDefault(m => m.Username == _username);
+            if ((mailboxConfig != null) && (mailboxConfig.LocalPassword == password))
+            {
+                _mailboxConfig = mailboxConfig;
+                _mailbox = _context.Mailboxes.Get(_mailboxConfig.Username, MailboxType.InboundOutput);
+                _mailbox.Lock();
+                return true;
+            }
+            else
+            {
+                return false;
+            }
         }
 
         private void ProcessStat()
@@ -197,7 +206,7 @@ namespace OpenPgpMailProxy
                         WriteLine("+OK logged in");
                         _authorized = true;
                         _entries = new Dictionary<Envelope, bool>();
-                        foreach (var envelope in _queue.List())
+                        foreach (var envelope in _mailbox.List())
                         {
                             _entries.Add(envelope, true);
                         }
@@ -255,7 +264,7 @@ namespace OpenPgpMailProxy
             {
                 foreach (var envelope in _entries.Where(e => !e.Value).Select(e => e.Key))
                 {
-                    _queue.Delete(envelope);
+                    _mailbox.Delete(envelope);
                 }
             }
             WriteLine("+OK bye");
@@ -264,6 +273,11 @@ namespace OpenPgpMailProxy
         protected override void Dispose(bool disposing)
         {
             Console.Error.WriteLine("Session closed");
+            if (_mailbox != null)
+            {
+                _mailbox.Release();
+                _mailbox = null;
+            }
             base.Dispose(disposing);
         }
     }

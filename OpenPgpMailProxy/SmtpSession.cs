@@ -16,12 +16,12 @@ namespace OpenPgpMailProxy
         private string _from;
         private List<string> _to;
         private StringBuilder _data;
-        private readonly IMailQueue _queue;
+        private IMailbox _mailbox;
+        private MailboxConfig _mailboxConfig;
 
-        public SmtpSession(Context context, TcpClient client, IMailQueue queue)
+        public SmtpSession(Context context, TcpClient client)
             : base(context, client)
         {
-            _queue = queue;
             Console.Error.WriteLine("New session");
         }
 
@@ -66,6 +66,22 @@ namespace OpenPgpMailProxy
             yield return Encoding.UTF8.GetString(data.Part(start));
         }
 
+        private bool Authenticate(string username, string password)
+        {
+            var mailboxConfig = _context.Config.Mailboxes.SingleOrDefault(m => m.Username == username);
+            if ((mailboxConfig != null) && (mailboxConfig.LocalPassword == password))
+            {
+                _mailboxConfig = mailboxConfig;
+                _mailbox = _context.Mailboxes.Get(_mailboxConfig.Username, MailboxType.OutboundInput);
+                _mailbox.Lock();
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
         private void ProcessAuth(Queue<string> arguments)
         {
             if (arguments.Count < 2)
@@ -91,9 +107,7 @@ namespace OpenPgpMailProxy
 
             var username = authParts[1];
             var password = authParts[2];
-
-            if ((_context.Config.SmtpServer.Username == username) &&
-                (_context.Config.SmtpServer.Password == password))
+            if (Authenticate(username, password))
             {
                 WriteLine("235 authentication successful");
                 _authorized = true;
@@ -173,8 +187,8 @@ namespace OpenPgpMailProxy
                 var line = ReadLine();
                 if (line == ".")
                 {
-                    var envelope = new Envelope(_from, _to, _data.ToString());
-                    _queue.Enqueue(envelope);
+                    var envelope = new Envelope(Guid.NewGuid().ToString(), _data.ToString());
+                    _mailbox.Enqueue(envelope);
                     WriteLine("250 Ok");
                     return;
                 }
@@ -227,6 +241,11 @@ namespace OpenPgpMailProxy
         protected override void Dispose(bool disposing)
         {
             Console.Error.WriteLine("Session closed");
+            if (_mailbox != null)
+            {
+                _mailbox.Release();
+                _mailbox = null;
+            }
             base.Dispose(disposing);
         }
     }

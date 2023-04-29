@@ -3,7 +3,7 @@ namespace OpenPgpMailProxy
 {
     public class NopMailProcessor : IMailProcessor
     {
-        public Envelope Process(Envelope input)
+        public Envelope Process(Envelope input, IMailbox errorBox)
         {
             return input;
         }

@@ -4,6 +4,6 @@ namespace OpenPgpMailProxy
 {
     public interface IMailProcessor
     {
-        Envelope Process(Envelope input);
+        Envelope Process(Envelope input, IMailbox errorBox);
     }
 }

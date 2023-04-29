@@ -2,6 +2,7 @@
 using System.IO;
 using System.Net;
 using System.Threading;
+using MimeKit;
 using ThrowException.CSharpLibs.ConfigParserLib;
 
 namespace OpenPgpMailProxy
@@ -37,7 +38,9 @@ namespace OpenPgpMailProxy
             var smtpEndpoint = new IPEndPoint(smtpIpAddress, config.SmtpBindPort);
             var smtpServer = new SmtpServer(context, smtpEndpoint);
 
-            var processTask = new MailProcessTask(context, new NopMailProcessor(), new NopMailProcessor());
+            var gpg = new LocalGpg("/usr/bin/gpg", config.GpgHome, "--batch", "--trust-model tofu+pgp");
+            var outboundProcessor = new GpgOutboundProcessor(gpg);
+            var processTask = new MailProcessTask(context, new NopMailProcessor(), outboundProcessor);
             var sendTask = new SmtpSendTask(context);
             var recieveTask = new Pop3RecieveTask(context);
             var runner = new TaskRunner(processTask, sendTask, recieveTask);

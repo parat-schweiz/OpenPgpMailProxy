@@ -23,6 +23,9 @@ namespace OpenPgpMailProxy
 
         [Setting]
         public string MailboxesPath { get; private set; }
+
+        [Setting]
+        public string GpgHome { get; private set; }
     }
 
     public class MailboxConfig : IConfig

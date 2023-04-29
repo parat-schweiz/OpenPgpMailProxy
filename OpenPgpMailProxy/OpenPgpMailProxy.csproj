@@ -98,6 +98,9 @@
     <Compile Include="TaskRunner.cs" />
     <Compile Include="SmtpSendTask.cs" />
     <Compile Include="Pop3RecieveTask.cs" />
+    <Compile Include="Gpg.cs" />
+    <Compile Include="GpgOutboundProcessor.cs" />
+    <Compile Include="ServerGnuPGContext.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

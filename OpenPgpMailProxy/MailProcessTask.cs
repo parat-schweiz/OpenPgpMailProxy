@@ -17,12 +17,15 @@ namespace OpenPgpMailProxy
             _outboundProcessor = outboundProcessor;
         }
 
-        private void Process(IMailbox source, IMailbox sink, IMailProcessor processor)
+        private void Process(IMailbox source, IMailbox sink, IMailbox errorBox, IMailProcessor processor)
         { 
             foreach (var envelope in source.List().ToList())
             {
-                var processed = processor.Process(envelope);
-                sink.Enqueue(processed);
+                var processed = processor.Process(envelope, errorBox);
+                if (processed != null)
+                {
+                    sink.Enqueue(processed);
+                }
                 source.Delete(envelope);
                 Console.Error.WriteLine("Processed mail");
             }
@@ -38,7 +41,23 @@ namespace OpenPgpMailProxy
                 sink.Lock();
                 try
                 {
-                    Process(source, sink, processor);
+                    if (sinkType == MailboxType.InboundOutput)
+                    {
+                        Process(source, sink, sink, processor);
+                    }
+                    else
+                    {
+                        var error = _context.Mailboxes.Get(username, MailboxType.InboundOutput);
+                        error.Lock();
+                        try
+                        {
+                            Process(source, sink, error, processor);
+                        }
+                        finally
+                        {
+                            error.Release();
+                        }
+                    }
                 }
                 finally
                 {

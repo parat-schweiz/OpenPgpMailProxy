@@ -108,29 +108,35 @@ namespace OpenPgpMailProxy
         {
             var sender = input.Message.From.FirstOrDefault() as MailboxAddress;
             var signatureKey = GetSignatureKey(input);
-
-            var protectedPart = GetProctectedPart(input, signatureKey);
-            var protectedPartBytes = ConvertLineEndings(GetBytes(protectedPart));
-            var result = _gpg.Sign(protectedPartBytes, out byte[] signatureBytes, sender.Address, SignatureType.DetachSign, true);
-
-            if (result.Status == GpgStatus.Success)
+            if (signatureKey != null)
             {
-                var signedPart = new Multipart("signed");
-                signedPart.Headers[HeaderId.ContentType] += "; micalg=pgp-sha512; protocol=\"application/pgp-signature\"";
-                signedPart.Add(protectedPart);
-                var signaturePart = new MimePart("application", "pgp-signature");
-                signaturePart.Headers[HeaderId.ContentType] += "; name=\"signature.asc\"";
-                signaturePart.Headers.Add(HeaderId.ContentDisposition, "attachment; filename=\"signature.asc\"");
-                signaturePart.Content = new MimeContent(new MemoryStream(signatureBytes));
-                signaturePart.ContentTransferEncoding = ContentEncoding.SevenBit;
-                signedPart.Add(signaturePart);
-                input.Message.Body = signedPart;
-                return input;
+                var protectedPart = GetProctectedPart(input, signatureKey);
+                var protectedPartBytes = ConvertLineEndings(GetBytes(protectedPart));
+                var result = _gpg.Sign(protectedPartBytes, out byte[] signatureBytes, sender.Address, SignatureType.DetachSign, true);
+
+                if (result.Status == GpgStatus.Success)
+                {
+                    var signedPart = new Multipart("signed");
+                    signedPart.Headers[HeaderId.ContentType] += "; micalg=pgp-sha512; protocol=\"application/pgp-signature\"";
+                    signedPart.Add(protectedPart);
+                    var signaturePart = new MimePart("application", "pgp-signature");
+                    signaturePart.Headers[HeaderId.ContentType] += "; name=\"signature.asc\"";
+                    signaturePart.Headers.Add(HeaderId.ContentDisposition, "attachment; filename=\"signature.asc\"");
+                    signaturePart.Content = new MimeContent(new MemoryStream(signatureBytes));
+                    signaturePart.ContentTransferEncoding = ContentEncoding.SevenBit;
+                    signedPart.Add(signaturePart);
+                    input.Message.Body = signedPart;
+                    return input;
+                }
+                else
+                {
+                    SendError(input, errorBox, "Signature failed: " + result.Status + "\n\n" + result.Information);
+                    return null;
+                }
             }
             else
             {
-                SendError(input, errorBox, "Signature failed: " + result.Status + "\n\n" + result.Information);
-                return null;
+                return input;
             }
         }
 
@@ -172,37 +178,44 @@ namespace OpenPgpMailProxy
             var sender = input.Message.From.FirstOrDefault() as MailboxAddress;
             var signatureKey = GetSignatureKey(input);
             var recipientIds = GetRecipientIds(input);
-
-            Multipart protectedPart = GetProctectedPart(input, signatureKey);
-            var protectedPartBytes = GetBytes(protectedPart);
-            var result = _gpg.EncryptAndSign(protectedPartBytes, out byte[] encryptedBytes, recipientIds, sender.Address, true);
-
-            if (result.Status == GpgStatus.Success)
+            if (signatureKey != null)
             {
-                var version = new MimePart("application", "pgp-encrypted");
-                version.Headers[HeaderId.ContentDescription] = "PGP/MIME version identification";
-                version.Content = new MimeContent(new MemoryStream(Encoding.ASCII.GetBytes("Version: 1")));
-                version.ContentTransferEncoding = ContentEncoding.SevenBit;
+                Multipart protectedPart = GetProctectedPart(input, signatureKey);
+                var protectedPartBytes = GetBytes(protectedPart);
+                var result = _gpg.EncryptAndSign(protectedPartBytes, out byte[] encryptedBytes, recipientIds, sender.Address, true);
 
-                var innerEncrypted = new MimePart("application", "octet-stream");
-                innerEncrypted.Headers[HeaderId.ContentType] += "; name=\"encrypted.asc\"";
-                innerEncrypted.Headers[HeaderId.ContentDescription] = "OpenPGP encrypted message";
-                innerEncrypted.Headers[HeaderId.ContentDisposition] = "inline; filename=\"encrypted.asc\"";
-                innerEncrypted.Content = new MimeContent(new MemoryStream(encryptedBytes));
-                innerEncrypted.ContentTransferEncoding = ContentEncoding.QuotedPrintable;
+                if (result.Status == GpgStatus.Success)
+                {
+                    var version = new MimePart("application", "pgp-encrypted");
+                    version.Headers[HeaderId.ContentDescription] = "PGP/MIME version identification";
+                    version.Content = new MimeContent(new MemoryStream(Encoding.ASCII.GetBytes("Version: 1")));
+                    version.ContentTransferEncoding = ContentEncoding.SevenBit;
 
-                var outerEncrypted = new Multipart("encrypted");
-                outerEncrypted.Headers[HeaderId.ContentType] += "; protocol=\"application/pgp-encrypted\"";
-                outerEncrypted.Add(version);
-                outerEncrypted.Add(innerEncrypted);
+                    var innerEncrypted = new MimePart("application", "octet-stream");
+                    innerEncrypted.Headers[HeaderId.ContentType] += "; name=\"encrypted.asc\"";
+                    innerEncrypted.Headers[HeaderId.ContentDescription] = "OpenPGP encrypted message";
+                    innerEncrypted.Headers[HeaderId.ContentDisposition] = "inline; filename=\"encrypted.asc\"";
+                    innerEncrypted.Content = new MimeContent(new MemoryStream(encryptedBytes));
+                    innerEncrypted.ContentTransferEncoding = ContentEncoding.QuotedPrintable;
 
-                input.Message.Subject = "...";
-                input.Message.Body = outerEncrypted;
-                return input;
+                    var outerEncrypted = new Multipart("encrypted");
+                    outerEncrypted.Headers[HeaderId.ContentType] += "; protocol=\"application/pgp-encrypted\"";
+                    outerEncrypted.Add(version);
+                    outerEncrypted.Add(innerEncrypted);
+
+                    input.Message.Subject = "...";
+                    input.Message.Body = outerEncrypted;
+                    return input;
+                }
+                else
+                {
+                    SendError(input, errorBox, "Encryption failed: " + result.Status + "\n\n" + result.Information);
+                    return null;
+                }
             }
             else
             {
-                SendError(input, errorBox, "Encryption failed: " + result.Status + "\n\n" + result.Information);
+                SendError(input, errorBox, "Encryption failed: No private key available for " + sender.Address);
                 return null;
             }
         }

@@ -74,8 +74,8 @@ namespace OpenPgpMailProxy
         {
             foreach (var user in _context.Config.Mailboxes)
             {
-                Process(user.Username, MailboxType.InboundInput, MailboxType.InboundOutput, _inboundProcessor);
                 Process(user.Username, MailboxType.OutboundInput, MailboxType.OutboundOutput, _outboundProcessor);
+                Process(user.Username, MailboxType.InboundInput, MailboxType.InboundOutput, _inboundProcessor);
             }
         }
     }

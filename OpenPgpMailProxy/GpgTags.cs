@@ -9,6 +9,8 @@ namespace OpenPgpMailProxy
         public const string SubjectTagUnverified = "[unverified]";
         public const string SubjectTagVerified = "[verified]";
         public const string SubjectTagBad = "[bad]";
+        public const string SubjectTagUnencrypted = "[unencrypted]";
+        public const string SubjectTagUnsigned = "[unsigned]";
         public static string[] SubjectTags = new string[] {
             SubjectTagEncrypt,
             SubjectTagEncrypted,
@@ -16,6 +18,8 @@ namespace OpenPgpMailProxy
             SubjectTagUnverified,
             SubjectTagVerified,
             SubjectTagBad,
+            SubjectTagUnencrypted,
+            SubjectTagUnsigned,
         };
     }
 }

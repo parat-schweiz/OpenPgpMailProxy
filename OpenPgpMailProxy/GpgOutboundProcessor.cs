@@ -64,22 +64,22 @@ namespace OpenPgpMailProxy
                 .ToList();
         }
 
-        private byte[] GetBytes(Multipart part)
+        private byte[] GetBytes(MimeEntity entity)
         {
             using (var stream = new MemoryStream())
             {
-                part.WriteTo(stream);
+                entity.WriteTo(stream);
                 return stream.ToArray();
             }
         }
 
-        private byte[] GetBytes(MimePart part)
+        private byte[] ConvertLineEndings(byte[] data)
         {
-            using (var stream = new MemoryStream())
-            {
-                part.WriteTo(stream);
-                return stream.ToArray();
-            }
+            var text = Encoding.UTF8.GetString(data);
+            var lines = text.Split(new string[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+            var newText = string.Join("\r\n", lines);
+            var newBytes = Encoding.UTF8.GetBytes(newText);
+            return newBytes;
         }
 
         private MimeEntity AttachPublicKey(MimeEntity body, GpgKey key)
@@ -87,7 +87,8 @@ namespace OpenPgpMailProxy
             var keyData = _gpg.ExportKeyBinary(key.Id, true);
             var publicKey = new MimePart("application", "pgp-keys");
             publicKey.Headers[HeaderId.ContentType] += "; name=\"OpenPGP_0x" + key.Id + ".asc\"";
-            publicKey.Content = new MimeContent(new MemoryStream(keyData), ContentEncoding.SevenBit);
+            publicKey.Content = new MimeContent(new MemoryStream(keyData));
+            publicKey.ContentTransferEncoding = ContentEncoding.QuotedPrintable;
 
             if (body is Multipart bodyPart)
             {
@@ -108,20 +109,20 @@ namespace OpenPgpMailProxy
             var sender = input.Message.From.FirstOrDefault() as MailboxAddress;
             var signatureKey = GetSignatureKey(input);
 
-            Multipart protectedPart = GetProctectedPart(input, signatureKey);
-            var protectedPartBytes = GetBytes(protectedPart);
+            var protectedPart = GetProctectedPart(input, signatureKey);
+            var protectedPartBytes = ConvertLineEndings(GetBytes(protectedPart));
             var result = _gpg.Sign(protectedPartBytes, out byte[] signatureBytes, sender.Address, SignatureType.DetachSign, true);
 
             if (result.Status == GpgStatus.Success)
             {
                 var signedPart = new Multipart("signed");
-                signedPart.Headers[HeaderId.ContentType] += "; micalg=pgp-sha256; protocol=\"application/pgp-signature\"";
+                signedPart.Headers[HeaderId.ContentType] += "; micalg=pgp-sha512; protocol=\"application/pgp-signature\"";
                 signedPart.Add(protectedPart);
                 var signaturePart = new MimePart("application", "pgp-signature");
-                signaturePart.Headers[HeaderId.ContentType] += "; name=\"OpenPGP_signature.asc\"";
-                signaturePart.Headers.Add(HeaderId.ContentDescription, "OpenPGP digital signature");
-                signaturePart.Headers.Add(HeaderId.ContentDisposition, "attachment; filename=\"OpenPGP_signature\"");
-                signaturePart.Content = new MimeContent(new MemoryStream(signatureBytes), ContentEncoding.SevenBit);
+                signaturePart.Headers[HeaderId.ContentType] += "; name=\"signature.asc\"";
+                signaturePart.Headers.Add(HeaderId.ContentDisposition, "attachment; filename=\"signature.asc\"");
+                signaturePart.Content = new MimeContent(new MemoryStream(signatureBytes));
+                signaturePart.ContentTransferEncoding = ContentEncoding.SevenBit;
                 signedPart.Add(signaturePart);
                 input.Message.Body = signedPart;
                 return input;
@@ -157,10 +158,8 @@ namespace OpenPgpMailProxy
                     case HeaderId.To:
                     case HeaderId.Cc:
                     case HeaderId.MessageId:
-                        protectedPart.Headers.Add(header);
-                        break;
                     case HeaderId.Subject:
-                        protectedPart.Headers.Add(HeaderId.Subject, CleanSubject(input.Message.Subject));
+                        protectedPart.Headers.Add(header);
                         break;
                 }
             }
@@ -182,13 +181,15 @@ namespace OpenPgpMailProxy
             {
                 var version = new MimePart("application", "pgp-encrypted");
                 version.Headers[HeaderId.ContentDescription] = "PGP/MIME version identification";
-                version.Content = new MimeContent(new MemoryStream(Encoding.ASCII.GetBytes("Version: 1")), ContentEncoding.SevenBit);
+                version.Content = new MimeContent(new MemoryStream(Encoding.ASCII.GetBytes("Version: 1")));
+                version.ContentTransferEncoding = ContentEncoding.SevenBit;
 
                 var innerEncrypted = new MimePart("application", "octet-stream");
                 innerEncrypted.Headers[HeaderId.ContentType] += "; name=\"encrypted.asc\"";
                 innerEncrypted.Headers[HeaderId.ContentDescription] = "OpenPGP encrypted message";
                 innerEncrypted.Headers[HeaderId.ContentDisposition] = "inline; filename=\"encrypted.asc\"";
-                innerEncrypted.Content = new MimeContent(new MemoryStream(encryptedBytes), ContentEncoding.SevenBit);
+                innerEncrypted.Content = new MimeContent(new MemoryStream(encryptedBytes));
+                innerEncrypted.ContentTransferEncoding = ContentEncoding.QuotedPrintable;
 
                 var outerEncrypted = new Multipart("encrypted");
                 outerEncrypted.Headers[HeaderId.ContentType] += "; protocol=\"application/pgp-encrypted\"";
@@ -208,9 +209,23 @@ namespace OpenPgpMailProxy
 
         public Envelope Process(Envelope input, IMailbox errorBox)
         {
-            if (CanEncrypt(input))
+            if (input.Message.Subject.Contains(GpgTags.SubjectTagUnsigned))
             {
-                return EncryptMessage(input, errorBox);
+                input.Message.Subject = CleanSubject(input.Message.Subject);
+                return input;
+            }
+            else if (CanEncrypt(input))
+            {
+                if (input.Message.Subject.Contains(GpgTags.SubjectTagUnencrypted))
+                {
+                    input.Message.Subject = CleanSubject(input.Message.Subject);
+                    return SignMessage(input, errorBox);
+                }
+                else
+                {
+                    input.Message.Subject = CleanSubject(input.Message.Subject);
+                    return EncryptMessage(input, errorBox);
+                }
             }
             else if (MustEncrypt(input))
             {
@@ -219,6 +234,7 @@ namespace OpenPgpMailProxy
             }
             else
             {
+                input.Message.Subject = CleanSubject(input.Message.Subject);
                 return SignMessage(input, errorBox);
             }
         }
@@ -230,6 +246,7 @@ namespace OpenPgpMailProxy
             var mail = new MimePart("application", "mail");
             mail.FileName = "message.eml";
             mail.Content = new MimeContent(new MemoryStream(envelope.Bytes));
+            mail.ContentTransferEncoding = ContentEncoding.Base64;
             var body = new Multipart();
             body.Add(text);
             body.Add(mail);

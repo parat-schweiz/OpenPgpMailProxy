@@ -55,7 +55,7 @@ namespace OpenPgpMailProxy
 
         private void AutoKeyImport(MimePart body)
         {
-            var bytes = GetBytes(body.Content);
+            var bytes = GetContentBytes(body.Content);
             if ((body.ContentType.MediaType == "application") &&
                 (body.ContentType.MediaSubtype == "pgp-keys"))
             {
@@ -163,8 +163,8 @@ namespace OpenPgpMailProxy
             if (GetSignedParts(body, out MimeEntity payload, out MimePart signature))
             {
                 AutoKeyImport(payload);
-                var payloadBytes = GetBytes(payload);
-                var signatureBytes = GetBytes(signature);
+                var payloadBytes = GetPartBytes(payload);
+                var signatureBytes = GetContentBytes(signature.Content);
                 var result = _gpg.VerifyDetached(payloadBytes, signatureBytes);
 
                 if (result.Status == GpgStatus.Success)
@@ -199,8 +199,8 @@ namespace OpenPgpMailProxy
 
         private Envelope ProcessEncrypted(Multipart body, string subjectPrefix, Envelope input, IMailbox errorBox)
         {
-            var encryptedBody = body.FirstOrDefault(p => p.ContentType.MediaType == "application" && p.ContentType.MediaSubtype == "octet-stream");
-            var bytes = GetBytes(encryptedBody);
+            var encryptedBody = body.FirstOrDefault(p => p.ContentType.MediaType == "application" && p.ContentType.MediaSubtype == "octet-stream") as MimePart;
+            var bytes = GetContentBytes(encryptedBody.Content);
             var result = _gpg.Decrypt(bytes, out byte[] output);
             if (result.Status == GpgStatus.Success)
             {
@@ -230,7 +230,7 @@ namespace OpenPgpMailProxy
 
         private Envelope Process(MimePart body, string subjectPrefix, Envelope input, IMailbox errorBox)
         {
-            var bytes = GetBytes(body);
+            var bytes = GetContentBytes(body.Content);
             if (IsGpgData(bytes))
             {
                 var result = _gpg.Decrypt(bytes, out byte[] output);
@@ -287,7 +287,7 @@ namespace OpenPgpMailProxy
                 text.StartsWith("-----BEGIN PGP MESSAGE-----", StringComparison.Ordinal);
         }
 
-        private byte[] GetBytes(IMimeContent content)
+        private byte[] GetContentBytes(IMimeContent content)
         {
             using (var stream = new MemoryStream())
             {
@@ -296,7 +296,7 @@ namespace OpenPgpMailProxy
             }
         }
 
-        private byte[] GetBytes(MimeEntity part)
+        private byte[] GetPartBytes(MimeEntity part)
         {
             using (var stream = new MemoryStream())
             {

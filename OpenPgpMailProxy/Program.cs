@@ -39,8 +39,9 @@ namespace OpenPgpMailProxy
             var smtpServer = new SmtpServer(context, smtpEndpoint);
 
             var gpg = new LocalGpg("/usr/bin/gpg", config.GpgHome, "--batch", "--trust-model tofu+pgp");
+            var inboundProcessor = new GpgInboundProcessor(gpg);
             var outboundProcessor = new GpgOutboundProcessor(gpg);
-            var processTask = new MailProcessTask(context, new NopMailProcessor(), outboundProcessor);
+            var processTask = new MailProcessTask(context, inboundProcessor, outboundProcessor);
             var sendTask = new SmtpSendTask(context);
             var recieveTask = new Pop3RecieveTask(context);
             var runner = new TaskRunner(processTask, sendTask, recieveTask);

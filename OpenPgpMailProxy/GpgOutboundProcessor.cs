@@ -12,13 +12,6 @@ namespace OpenPgpMailProxy
 {
     public class GpgOutboundProcessor : IMailProcessor
     {
-        private const string SubjectTagEncrypt = "[encrypt]";
-        private const string SubjectTagEncrypted = "[encrypted]";
-        private string[] SubjectTags = new string[] {
-            SubjectTagEncrypt,
-            SubjectTagEncrypted,
-        };
-
         private readonly Gpg _gpg;
 
         public GpgOutboundProcessor(Gpg gpg)
@@ -49,8 +42,8 @@ namespace OpenPgpMailProxy
         private bool MustEncrypt(Envelope input)
         {
             return
-                input.Message.Subject.ToLowerInvariant().Contains(SubjectTagEncrypt) ||
-                input.Message.Subject.ToLowerInvariant().Contains(SubjectTagEncrypted);
+                input.Message.Subject.ToLowerInvariant().Contains(GpgTags.SubjectTagEncrypt) ||
+                input.Message.Subject.ToLowerInvariant().Contains(GpgTags.SubjectTagEncrypted);
         }
 
         private bool CanEncrypt(Envelope input)
@@ -142,14 +135,14 @@ namespace OpenPgpMailProxy
 
         private string CleanSubject(string subject)
         { 
-            foreach (var tag in SubjectTags)
+            foreach (var tag in GpgTags.SubjectTags)
             {
-                subject = Regex.Replace(subject, " +" + tag + " +", " ", RegexOptions.CultureInvariant);
-                subject = Regex.Replace(subject, " +" + tag, " ", RegexOptions.CultureInvariant);
-                subject = Regex.Replace(subject, tag + " +", " ", RegexOptions.CultureInvariant);
-                subject = Regex.Replace(subject, tag, "", RegexOptions.CultureInvariant);
+                subject = Regex.Replace(subject, " +" + Regex.Escape(tag) + " +", " ", RegexOptions.CultureInvariant);
+                subject = Regex.Replace(subject, " +" + Regex.Escape(tag), " ", RegexOptions.CultureInvariant);
+                subject = Regex.Replace(subject, Regex.Escape(tag) + " +", " ", RegexOptions.CultureInvariant);
+                subject = Regex.Replace(subject, Regex.Escape(tag), "", RegexOptions.CultureInvariant);
             }
-            return subject;
+            return subject.Trim();
         }
 
         private Multipart GetProctectedPart(Envelope input, GpgKey signatureKey)

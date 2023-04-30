@@ -532,12 +532,19 @@ namespace OpenPgpMailProxy
 
         public GpgResult Decrypt(string input, out string output, string passphrase = null)
         {
-            using (var inputStream = new MemoryStream(Encoding.UTF8.GetBytes(input)))
+            var result = Decrypt(Encoding.UTF8.GetBytes(input), out byte[] outputBytes, passphrase);
+            output = Encoding.UTF8.GetString(outputBytes);
+            return result;
+        }
+
+        public GpgResult Decrypt(byte[] input, out byte[] output, string passphrase = null)
+        {
+            using (var inputStream = new MemoryStream(input))
             {
                 using (var outputStream = new MemoryStream())
                 {
                     var result = Decrypt(inputStream, outputStream, passphrase);
-                    output = Encoding.UTF8.GetString(outputStream.ToArray());
+                    output = outputStream.ToArray();
                     return result;
                 }
             }
@@ -609,6 +616,28 @@ namespace OpenPgpMailProxy
         public GpgResult Verify(Stream input, Stream output)
         {
             return ExecuteResult(input, output, null, "--verify");
+        }
+
+        public GpgResult VerifyDetached(byte[] input, byte[] signature)
+        {
+            using (var inputStream = new MemoryStream(input))
+            {
+                return VerifyDetached(inputStream, signature);
+            }
+        }
+
+        public GpgResult VerifyDetached(Stream input, byte[] signature)
+        {
+            var filename = "/tmp/" + Guid.NewGuid().ToString() + ".asc";
+            File.WriteAllBytes(filename, signature);
+            try
+            {
+                return ExecuteResult(input, null, null, "--verify " + filename + " -");
+            }
+            finally
+            {
+                File.Delete(filename);
+            }
         }
 
         private GpgResult ExecuteResult(Stream input, Stream output, string password, params string[] arguments)
@@ -770,6 +799,11 @@ namespace OpenPgpMailProxy
         public IEnumerable<GpgKey> ImportKey(string keyData)
         {
             return ImportKeys(Encoding.UTF8.GetBytes(keyData));
+        }
+
+        public IEnumerable<GpgKey> ImportKey(byte[] keyData)
+        {
+            return ImportKeys(keyData);
         }
 
         public GpgCardStatusResult CardStatus()

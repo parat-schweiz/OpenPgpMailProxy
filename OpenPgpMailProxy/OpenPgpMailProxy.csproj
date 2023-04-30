@@ -101,6 +101,8 @@
     <Compile Include="Gpg.cs" />
     <Compile Include="GpgOutboundProcessor.cs" />
     <Compile Include="ServerGnuPGContext.cs" />
+    <Compile Include="GpgInboundProcessor.cs" />
+    <Compile Include="GpgTags.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

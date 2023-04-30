@@ -11,8 +11,6 @@ namespace OpenPgpMailProxy
 
         void Delete(Envelope envelope);
 
-        void Lock();
-
-        void Release();
+        bool Exists(Envelope envelope);
     }
 }

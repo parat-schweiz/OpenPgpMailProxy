@@ -10,7 +10,8 @@ namespace OpenPgpMailProxy
     {
         private string _username = null;
         private bool _authorized = false;
-        private Dictionary<Envelope, bool> _entries;
+        private List<Envelope> _entries;
+        private List<Envelope> _delete;
         private int _last = 0;
         private MailboxConfig _mailboxConfig;
         private IMailbox _mailbox;
@@ -61,7 +62,6 @@ namespace OpenPgpMailProxy
             {
                 _mailboxConfig = mailboxConfig;
                 _mailbox = _context.Mailboxes.Get(_mailboxConfig.Username, MailboxType.InboundOutput);
-                _mailbox.Lock();
                 _context.Log.Notice("POP3 server: Authentication for {0} successful", _username);
                 return true;
             }
@@ -79,7 +79,10 @@ namespace OpenPgpMailProxy
                 WriteLine("-ERR unauthorized");
                 return;
             }
-            var envelopes = _entries.Where(e => e.Value).Select(e => e.Key);
+            var envelopes = _entries
+                .Where(e => !_delete.Contains(e))
+                .Where(_mailbox.Exists)
+                .ToList();
             var count = envelopes.Count();
             var bytes = envelopes.Sum(e => e.Data.Length);
             WriteLine(string.Format("+OK {0} {1}", count, bytes));
@@ -109,9 +112,9 @@ namespace OpenPgpMailProxy
                 int number = 1;
                 foreach (var entry in _entries)
                 {
-                    if (entry.Value)
+                    if (!_delete.Contains(entry) && _mailbox.Exists(entry))
                     {
-                        WriteLine(string.Format("{0} {1}", number, entry.Key.Data.Length));
+                        WriteLine(string.Format("{0} {1}", number, entry.Data.Length));
                     }
                     number++;
                 }
@@ -167,9 +170,9 @@ namespace OpenPgpMailProxy
                 else
                 {
                     var entry = _entries.ElementAt(id - 1);
-                    if (entry.Value)
+                    if (!_delete.Contains(entry) && _mailbox.Exists(entry))
                     {
-                        return new Tuple<int, Envelope>(id, entry.Key);
+                        return new Tuple<int, Envelope>(id, entry);
                     }
                     else
                     {
@@ -194,7 +197,7 @@ namespace OpenPgpMailProxy
             }
 
             var message = GetMessage(arguments.Dequeue());
-            _entries[message.Item2] = false;
+            _delete.Add(message.Item2);
             _last = Math.Max(_last, message.Item1);
             WriteLine("+OK deleted");
             _context.Log.Verbose("POP3 server: Message deleted");
@@ -216,11 +219,8 @@ namespace OpenPgpMailProxy
                         Thread.Sleep(300);
                         WriteLine("+OK logged in");
                         _authorized = true;
-                        _entries = new Dictionary<Envelope, bool>();
-                        foreach (var envelope in _mailbox.List())
-                        {
-                            _entries.Add(envelope, true);
-                        }
+                        _entries = _mailbox.List().ToList();
+                        _delete = new List<Envelope>();
                     }
                     else
                     {
@@ -267,7 +267,7 @@ namespace OpenPgpMailProxy
 
         private void ProcessRset()
         {
-            _entries.All(e => _entries[e.Key] = true);
+            _delete.Clear();
             WriteLine("+OK");
             _context.Log.Verbose("POP3 server: Reset completed");
         }
@@ -277,10 +277,10 @@ namespace OpenPgpMailProxy
             _context.Log.Verbose("POP3 server: Quitting...");
             if (_entries != null)
             {
-                foreach (var envelope in _entries.Where(e => !e.Value).Select(e => e.Key))
+                foreach (var entry in _delete)
                 {
                     _context.Log.Verbose("POP3 server: Deleting entry");
-                    _mailbox.Delete(envelope);
+                    _mailbox.Delete(entry);
                 }
             }
             WriteLine("+OK bye");
@@ -290,11 +290,7 @@ namespace OpenPgpMailProxy
         protected override void Dispose(bool disposing)
         {
             _context.Log.Info("POP3 server: Session closed");
-            if (_mailbox != null)
-            {
-                _mailbox.Release();
-                _mailbox = null;
-            }
+            _mailbox = null;
             base.Dispose(disposing);
         }
     }

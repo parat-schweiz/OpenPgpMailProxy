@@ -37,15 +37,7 @@ namespace OpenPgpMailProxy
         {
             _context.Log.Verbose("POP3 client: querying mailbox {0}", config.Username);
             var mailbox = _context.Mailboxes.Get(config.Username, MailboxType.InboundInput);
-            mailbox.Lock();
-            try
-            {
-                Run(config, mailbox);
-            }
-            finally
-            {
-                mailbox.Release();
-            }
+            Run(config, mailbox);
         }
 
         public void Run()

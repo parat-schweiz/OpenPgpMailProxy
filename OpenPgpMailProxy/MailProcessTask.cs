@@ -34,23 +34,15 @@ namespace OpenPgpMailProxy
         private void Process(string username, MailboxType sourceType, MailboxType sinkType, IMailProcessor processor)
         {
             var source = _context.Mailboxes.Get(username, sourceType);
-            source.Lock();
-            try
+            var sink = _context.Mailboxes.Get(username, sinkType);
+            if (sinkType == MailboxType.InboundOutput)
             {
-                var sink = _context.Mailboxes.Get(username, sinkType);
-                if (sinkType == MailboxType.InboundOutput)
-                {
-                    Process(source, sink, sink, processor);
-                }
-                else
-                {
-                    var error = _context.Mailboxes.Get(username, MailboxType.InboundOutput);
-                    Process(source, sink, error, processor);
-                }
+                Process(source, sink, sink, processor);
             }
-            finally
+            else
             {
-                source.Release();
+                var error = _context.Mailboxes.Get(username, MailboxType.InboundOutput);
+                Process(source, sink, error, processor);
             }
         }
 

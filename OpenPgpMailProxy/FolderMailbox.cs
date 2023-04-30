@@ -10,19 +10,20 @@ namespace OpenPgpMailProxy
     public class FolderMailbox : IMailbox
     {
         private DirectoryInfo _directory;
-        private object _locker;
 
-        public FolderMailbox(string path, object locker)
+        public FolderMailbox(string path)
         {
             _directory = new DirectoryInfo(path);
-            _locker = locker;
         }
 
         public void Delete(Envelope envelope)
         {
             var filename = Path.Combine(_directory.FullName, envelope.Id);
-            File.Delete(filename);
-            Console.Error.WriteLine("Mail delete from {0}", filename);
+            if (File.Exists(filename))
+            {
+                File.Delete(filename);
+                Console.Error.WriteLine("Mail delete from {0}", filename);
+            }
         }
 
         public void Enqueue(Envelope envelope)
@@ -33,6 +34,12 @@ namespace OpenPgpMailProxy
                 envelope.Message.WriteTo(file);
             }
             Console.Error.WriteLine("Mail written to {0}", filename);
+        }
+
+        public bool Exists(Envelope envelope)
+        {
+            var filename = Path.Combine(_directory.FullName, envelope.Id);
+            return File.Exists(filename);
         }
 
         public IEnumerable<Envelope> List()
@@ -46,16 +53,6 @@ namespace OpenPgpMailProxy
                     yield return new Envelope(id, message);
                 }
             }
-        }
-
-        public void Lock()
-        {
-            System.Threading.Monitor.Enter(_locker);
-        }
-
-        public void Release()
-        {
-            System.Threading.Monitor.Exit(_locker);
         }
     }
 }

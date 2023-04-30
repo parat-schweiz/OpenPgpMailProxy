@@ -97,24 +97,8 @@ namespace OpenPgpMailProxy
         {
             _context.Log.Verbose("SMTP client: sending mails for {0}", config.Username);
             var errorBox = _context.Mailboxes.Get(config.Username, MailboxType.InboundOutput);
-            errorBox.Lock();
-            try
-            {
-                var mailbox = _context.Mailboxes.Get(config.Username, MailboxType.OutboundOutput);
-                mailbox.Lock();
-                try
-                {
-                    Run(config, mailbox, errorBox);
-                }
-                finally
-                {
-                    mailbox.Release();
-                }
-            }
-            finally
-            {
-                errorBox.Release();
-            }
+            var mailbox = _context.Mailboxes.Get(config.Username, MailboxType.OutboundOutput);
+            Run(config, mailbox, errorBox);
         }
 
         public void Run()

@@ -38,30 +38,14 @@ namespace OpenPgpMailProxy
             try
             {
                 var sink = _context.Mailboxes.Get(username, sinkType);
-                sink.Lock();
-                try
+                if (sinkType == MailboxType.InboundOutput)
                 {
-                    if (sinkType == MailboxType.InboundOutput)
-                    {
-                        Process(source, sink, sink, processor);
-                    }
-                    else
-                    {
-                        var error = _context.Mailboxes.Get(username, MailboxType.InboundOutput);
-                        error.Lock();
-                        try
-                        {
-                            Process(source, sink, error, processor);
-                        }
-                        finally
-                        {
-                            error.Release();
-                        }
-                    }
+                    Process(source, sink, sink, processor);
                 }
-                finally
+                else
                 {
-                    sink.Release();
+                    var error = _context.Mailboxes.Get(username, MailboxType.InboundOutput);
+                    Process(source, sink, error, processor);
                 }
             }
             finally

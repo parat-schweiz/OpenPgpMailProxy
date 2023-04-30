@@ -22,19 +22,17 @@ namespace OpenPgpMailProxy
         public SmtpSession(Context context, TcpClient client)
             : base(context, client)
         {
-            Console.Error.WriteLine("New session");
+            _context.Log.Notice("SMTP server: New session");
         }
 
         protected override void WriteLine(string text)
         {
-            Console.Error.WriteLine("Server: {0}", text);
             base.Write(text + "\r\n");
         }
 
         protected override string ReadLine()
         {
             var text = base.ReadLine();
-            Console.Error.WriteLine("Client: {0}", text);
             return text;
         }
 
@@ -48,7 +46,14 @@ namespace OpenPgpMailProxy
                 var command = ReadLine();
                 if (string.IsNullOrEmpty(command))
                     return;
-                run = ProcessCommand(command);
+                try
+                {
+                    run = ProcessCommand(command);
+                }
+                catch (Exception exception)
+                {
+                    _context.Log.Warning("SMTP server failure: {0}", exception.ToString());
+                }
             }
         }
 
@@ -73,11 +78,12 @@ namespace OpenPgpMailProxy
             {
                 _mailboxConfig = mailboxConfig;
                 _mailbox = _context.Mailboxes.Get(_mailboxConfig.Username, MailboxType.OutboundInput);
-                _mailbox.Lock();
+                _context.Log.Notice("SMTP server: Authentication for {0} successful", username);
                 return true;
             }
             else
             {
+                _context.Log.Notice("SMTP server: Authentication for {0} failed", username);
                 return false;
             }
         }
@@ -123,12 +129,14 @@ namespace OpenPgpMailProxy
             if (!_authorized)
             {
                 WriteLine("530 authentication required");
+                _context.Log.Verbose("SMTP server: MAIL failed with authentication required");
                 return;
             }
 
             if (!arguments.Any())
             {
                 WriteLine("501 argument missing");
+                _context.Log.Verbose("SMTP server: MAIL failed with argument missing");
                 return;
             }
 
@@ -139,10 +147,12 @@ namespace OpenPgpMailProxy
                 _to = new List<string>();
                 _data = new StringBuilder();
                 WriteLine("250 Ok");
+                _context.Log.Verbose("SMTP server: MAIL succesful");
             }
             else
             {
                 WriteLine("501 invalid parameter");
+                _context.Log.Verbose("SMTP server: MAIL failed with invalid parameter");
             }
         }
 
@@ -151,12 +161,14 @@ namespace OpenPgpMailProxy
             if (!_authorized)
             {
                 WriteLine("530 authentication required");
+                _context.Log.Verbose("SMTP server: RCPT failed with authentication required");
                 return;
             }
 
             if (!arguments.Any())
             {
                 WriteLine("501 argument missing");
+                _context.Log.Verbose("SMTP server: RCPT failed with argument missing");
                 return;
             }
 
@@ -165,10 +177,12 @@ namespace OpenPgpMailProxy
             {
                 _to.Add(match.Groups[1].Value);
                 WriteLine("250 Ok");
+                _context.Log.Verbose("SMTP server: RCPT succesful");
             }
             else
             {
                 WriteLine("501 invalid parameter");
+                _context.Log.Verbose("SMTP server: RCPT failed with invalid parameter");
             }
         }
 
@@ -177,6 +191,7 @@ namespace OpenPgpMailProxy
             if (!_authorized)
             {
                 WriteLine("530 authentication required");
+                _context.Log.Verbose("SMTP server: DATA failed with authentication required");
                 return;
             }
 
@@ -190,6 +205,7 @@ namespace OpenPgpMailProxy
                     var envelope = new Envelope(Guid.NewGuid().ToString(), _data.ToString());
                     _mailbox.Enqueue(envelope);
                     WriteLine("250 Ok");
+                    _context.Log.Notice("SMTP server: New mail queued");
                     return;
                 }
                 else if (line.StartsWith(".", StringComparison.Ordinal))
@@ -211,11 +227,13 @@ namespace OpenPgpMailProxy
             {
                 case "HELO":
                     WriteLine("250 localhost Hello " + parts.Dequeue());
+                    _context.Log.Verbose("SMTP server: HELO sucessful");
                     return true;
                 case "EHLO":
                     WriteLine("250-localhost Hello " + parts.Dequeue());
                     WriteLine("250-SIZE 14680064");
                     WriteLine("250 AUTH PLAIN");
+                    _context.Log.Verbose("SMTP server: EHLO sucessful");
                     return true;
                 case "AUTH":
                     ProcessAuth(parts);
@@ -231,19 +249,20 @@ namespace OpenPgpMailProxy
                     return true;
                 case "QUIT":
                     WriteLine("221 bye");
+                    _context.Log.Verbose("SMTP server: QUIT sucessful");
                     return false;
                 default:
                     WriteLine("500 unknown command");
+                    _context.Log.Verbose("SMTP server: Unknown command {0}", command);
                     return true;
             }
         }
 
         protected override void Dispose(bool disposing)
         {
-            Console.Error.WriteLine("Session closed");
+            _context.Log.Info("SMTP server: Session closed");
             if (_mailbox != null)
             {
-                _mailbox.Release();
                 _mailbox = null;
             }
             base.Dispose(disposing);

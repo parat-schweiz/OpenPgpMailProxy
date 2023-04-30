@@ -4,6 +4,7 @@ using System.Net;
 using System.Threading;
 using MimeKit;
 using ThrowException.CSharpLibs.ConfigParserLib;
+using ThrowException.CSharpLibs.LogLib;
 
 namespace OpenPgpMailProxy
 {
@@ -26,9 +27,10 @@ namespace OpenPgpMailProxy
 
             var parser = new XmlConfig<Config>();
             var config = parser.ParseFile(configFilename);
-            var context = new Context(config);
-
-            var queue = new MemoryMailQueue();
+            var log = new Logger();
+            log.ConsoleSeverity = config.LogConsoleLevel;
+            log.EnableLogFile(config.LogFileLevel, config.LogFilePrefix);
+            var context = new Context(config, log);
 
             var pop3IpAddress = IPAddress.Parse(config.Pop3BindAddress);
             var pop3EndPoint = new IPEndPoint(pop3IpAddress, config.Pop3BindPort);
@@ -39,8 +41,8 @@ namespace OpenPgpMailProxy
             var smtpServer = new SmtpServer(context, smtpEndpoint);
 
             var gpg = new LocalGpg("/usr/bin/gpg", config.GpgHome, "--batch", "--trust-model tofu+pgp");
-            var inboundProcessor = new GpgInboundProcessor(gpg);
-            var outboundProcessor = new GpgOutboundProcessor(gpg);
+            var inboundProcessor = new GpgInboundProcessor(gpg, context);
+            var outboundProcessor = new GpgOutboundProcessor(gpg, context);
             var processTask = new MailProcessTask(context, inboundProcessor, outboundProcessor);
             var sendTask = new SmtpSendTask(context);
             var recieveTask = new Pop3RecieveTask(context);

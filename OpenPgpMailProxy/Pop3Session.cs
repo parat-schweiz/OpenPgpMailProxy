@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 
@@ -19,19 +18,17 @@ namespace OpenPgpMailProxy
         public Pop3Session(Context context, TcpClient client)
             : base(context, client)
         {
-            Console.Error.WriteLine("New session");
+            _context.Log.Info("POP3 server: New session");
         }
 
         protected override void WriteLine(string text)
         {
-            Console.Error.WriteLine("Server: {0}", text);
             base.Write(text + "\r\n");
         }
 
         protected override string ReadLine()
         {
             var text = base.ReadLine();
-            Console.Error.WriteLine("Client: {0}", text);
             return text;
         }
 
@@ -45,7 +42,15 @@ namespace OpenPgpMailProxy
                 var command = ReadLine();
                 if (string.IsNullOrEmpty(command))
                     return;
-                run = ProcessCommand(command);
+                try
+                {
+                    run = ProcessCommand(command);
+                }
+                catch (Exception exception)
+                {
+                    _context.Log.Warning("POP3 server failure: {0}", exception.ToString());
+                    return;
+                }
             }
         }
 
@@ -57,10 +62,12 @@ namespace OpenPgpMailProxy
                 _mailboxConfig = mailboxConfig;
                 _mailbox = _context.Mailboxes.Get(_mailboxConfig.Username, MailboxType.InboundOutput);
                 _mailbox.Lock();
+                _context.Log.Notice("POP3 server: Authentication for {0} successful", _username);
                 return true;
             }
             else
             {
+                _context.Log.Notice("POP3 server: Authentication for {0} failed", _username);
                 return false;
             }
         }
@@ -76,6 +83,7 @@ namespace OpenPgpMailProxy
             var count = envelopes.Count();
             var bytes = envelopes.Sum(e => e.Data.Length);
             WriteLine(string.Format("+OK {0} {1}", count, bytes));
+            _context.Log.Verbose("POP3 server: Stat completed");
         }
 
         private void ProcessList(Queue<string> arguments)
@@ -109,6 +117,7 @@ namespace OpenPgpMailProxy
                 }
                 WriteLine(".");
             }
+            _context.Log.Verbose("POP3 server: List completed");
         }
 
         private void ProcessRetr(Queue<string> arguments)
@@ -143,6 +152,7 @@ namespace OpenPgpMailProxy
                     }
                 }
                 WriteLine(".");
+                _context.Log.Info("POP3 server: Message retrieved");
             }
         }
 
@@ -187,6 +197,7 @@ namespace OpenPgpMailProxy
             _entries[message.Item2] = false;
             _last = Math.Max(_last, message.Item1);
             WriteLine("+OK deleted");
+            _context.Log.Verbose("POP3 server: Message deleted");
         }
 
         private bool ProcessCommand(string command)
@@ -243,6 +254,7 @@ namespace OpenPgpMailProxy
                     return false;
                 default:
                     WriteLine("-ERR unknown command");
+                    _context.Log.Verbose("POP3 server: Unknown command");
                     return true;
             }
         }
@@ -250,29 +262,34 @@ namespace OpenPgpMailProxy
         private void ProcessLast()
         {
             WriteLine(string.Format("+OK {0}", _last));
+            _context.Log.Verbose("POP3 server: Last completed");
         }
 
         private void ProcessRset()
         {
             _entries.All(e => _entries[e.Key] = true);
             WriteLine("+OK");
+            _context.Log.Verbose("POP3 server: Reset completed");
         }
 
         private void ProcessQuit()
         {
+            _context.Log.Verbose("POP3 server: Quitting...");
             if (_entries != null)
             {
                 foreach (var envelope in _entries.Where(e => !e.Value).Select(e => e.Key))
                 {
+                    _context.Log.Verbose("POP3 server: Deleting entry");
                     _mailbox.Delete(envelope);
                 }
             }
             WriteLine("+OK bye");
+            _context.Log.Verbose("POP3 server: Quit completed");
         }
 
         protected override void Dispose(bool disposing)
         {
-            Console.Error.WriteLine("Session closed");
+            _context.Log.Info("POP3 server: Session closed");
             if (_mailbox != null)
             {
                 _mailbox.Release();

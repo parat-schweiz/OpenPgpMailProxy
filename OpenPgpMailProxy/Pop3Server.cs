@@ -12,6 +12,7 @@ namespace OpenPgpMailProxy
             : base(endPoint)
         {
             _context = context;
+            _context.Log.Notice("POP3 server started");
         }
 
         protected override Pop3Session Create(TcpClient client)

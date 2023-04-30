@@ -36,14 +36,14 @@ namespace OpenPgpMailProxy
             return path;
         }
 
-        private object GetLocker(string path)
+        private object GetLocker(string label)
         {
-            if (!_lockers.ContainsKey(path))
+            if (!_lockers.ContainsKey(label))
             {
-                _lockers.Add(path, new object());
+                _lockers.Add(label, new object());
             }
 
-            return _lockers[path];
+            return _lockers[label];
         }
 
         public IMailbox Get(string username, MailboxType type)

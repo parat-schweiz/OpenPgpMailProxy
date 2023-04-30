@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using ThrowException.CSharpLibs.ConfigParserLib;
+using ThrowException.CSharpLibs.LogLib;
 
 namespace OpenPgpMailProxy
 {
@@ -26,6 +27,15 @@ namespace OpenPgpMailProxy
 
         [Setting]
         public string GpgHome { get; private set; }
+
+        [Setting]
+        public LogSeverity LogConsoleLevel { get; private set; }
+
+        [Setting]
+        public string LogFilePrefix { get; private set; }
+
+        [Setting]
+        public LogSeverity LogFileLevel { get; private set; }
     }
 
     public class MailboxConfig : IConfig

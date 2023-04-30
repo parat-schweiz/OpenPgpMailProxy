@@ -8,11 +8,13 @@ namespace OpenPgpMailProxy
 {
     public class GpgInboundProcessor : IMailProcessor
     {
+        private readonly Context _context;
         private Gpg _gpg;
 
-        public GpgInboundProcessor(Gpg gpg)
+        public GpgInboundProcessor(Gpg gpg, Context context)
         {
             _gpg = gpg;
+            _context = context;
         }
 
         private Envelope ProcessSecuredBody(Multipart body, string subjectPrefix, Envelope input, IMailbox errorBox)
@@ -26,6 +28,7 @@ namespace OpenPgpMailProxy
                         input.Message.Headers[headerId] = body.Headers[headerId];
                     }
                 }
+                _context.Log.Verbose("Inbound: Protected headers updated");
 
                 if (body.Count == 1)
                 {
@@ -34,6 +37,7 @@ namespace OpenPgpMailProxy
 
                 input.Message.Subject = subjectPrefix + input.Message.Subject;
                 AutoKeyImport(input.Message.Body);
+                _context.Log.Verbose("Inbound: Secured mail body returned");
                 return input;
             }
             else
@@ -41,6 +45,7 @@ namespace OpenPgpMailProxy
                 input.Message.Body = body;
                 input.Message.Subject = subjectPrefix + input.Message.Subject;
                 AutoKeyImport(input.Message.Body);
+                _context.Log.Verbose("Inbound: Secured mail body returned");
                 return input;
             }
         }
@@ -59,11 +64,17 @@ namespace OpenPgpMailProxy
             if ((body.ContentType.MediaType == "application") &&
                 (body.ContentType.MediaSubtype == "pgp-keys"))
             {
-                _gpg.ImportKey(bytes);
+                foreach (var key in _gpg.ImportKey(bytes))
+                {
+                    _context.Log.Verbose("Inbound: Public key {0} imported", key.Id);
+                }
             }
             else if (IsGpgPublicKey(bytes))
             {
-                _gpg.ImportKey(bytes);
+                foreach (var key in _gpg.ImportKey(bytes))
+                {
+                    _context.Log.Verbose("Inbound: Public key {0} imported", key.Id);
+                }
             }
         }
 
@@ -93,6 +104,7 @@ namespace OpenPgpMailProxy
             }
             else
             {
+                _context.Log.Verbose("Inbound: Simple secured body");
                 input.Message.Body = body;
                 return input;
             }
@@ -160,6 +172,7 @@ namespace OpenPgpMailProxy
 
         private Envelope ProcessSigned(Multipart body, string subjectPrefix, Envelope input, IMailbox errorBox)
         {
+            _context.Log.Verbose("Inbound: Processing signed mail");
             if (GetSignedParts(body, out MimeEntity payload, out MimePart signature))
             {
                 AutoKeyImport(payload);
@@ -169,16 +182,19 @@ namespace OpenPgpMailProxy
 
                 if (result.Status == GpgStatus.Success)
                 {
+                    _context.Log.Notice("Inbound: Signature verification successful");
                     var trust = GetTrust(result.Signer, input.Message.From.First() as MailboxAddress);
                     subjectPrefix += GetSignedTrustTag(trust);
                     return ProcessSecuredBody(payload, subjectPrefix, input, errorBox);
                 }
                 else
                 {
+                    _context.Log.Warning("Inbound: Signature verification failed");
                     subjectPrefix += GpgTags.SubjectTagBad;
                     return ProcessSecuredBody(payload, subjectPrefix, input, errorBox);
                 }
             }
+            _context.Log.Warning("Inbound: Bad signature data");
             input.Message.Subject = subjectPrefix + input.Message.Subject;
             return input;
         }
@@ -199,11 +215,13 @@ namespace OpenPgpMailProxy
 
         private Envelope ProcessEncrypted(Multipart body, string subjectPrefix, Envelope input, IMailbox errorBox)
         {
+            _context.Log.Verbose("Inbound: Processing encrypted mail");
             var encryptedBody = body.FirstOrDefault(p => p.ContentType.MediaType == "application" && p.ContentType.MediaSubtype == "octet-stream") as MimePart;
             var bytes = GetContentBytes(encryptedBody.Content);
             var result = _gpg.Decrypt(bytes, out byte[] output);
             if (result.Status == GpgStatus.Success)
             {
+                _context.Log.Notice("Inbound: Mail decrypted");
                 subjectPrefix += GpgTags.SubjectTagEncrypted;
                 if (TryLoadMime(output, out MimeEntity entity))
                 {
@@ -224,18 +242,22 @@ namespace OpenPgpMailProxy
                     return input;
                 }
             }
+            _context.Log.Warning("Inbound: Cannot decrypt mail");
             input.Message.Subject = subjectPrefix + input.Message.Subject;
             return input;
         }
 
         private Envelope Process(MimePart body, string subjectPrefix, Envelope input, IMailbox errorBox)
         {
+            AutoKeyImport(input.Message.Body);
             var bytes = GetContentBytes(body.Content);
             if (IsGpgData(bytes))
             {
+                _context.Log.Verbose("Inbound: Processing OpenPGP inline data");
                 var result = _gpg.Decrypt(bytes, out byte[] output);
                 if (result.Status == GpgStatus.Success)
                 {
+                    _context.Log.Notice("Inbound: Inline data verified or decrypted");
                     subjectPrefix += GpgTags.SubjectTagEncrypted;
                     if (TryLoadMime(output, out MimeEntity entity))
                     {
@@ -253,12 +275,14 @@ namespace OpenPgpMailProxy
                         text.Content = new MimeContent(new MemoryStream(output));
                         input.Message.Body = text;
                         input.Message.Subject = subjectPrefix + input.Message.Subject;
+                        _context.Log.Verbose("Inbound: Plain data returned");
                         return input;
                     }
                 }
             }
             input.Message.Subject = subjectPrefix + input.Message.Subject;
             AutoKeyImport(input.Message.Body);
+            _context.Log.Verbose("Inbound: Unsecured data returned");
             return input;
         }
 
@@ -307,6 +331,7 @@ namespace OpenPgpMailProxy
 
         private Envelope Process(MimeEntity body, string subjectPrefix, Envelope input, IMailbox errorBox)
         {
+            _context.Log.Info("Inbound: Processing mail");
             if (body is Multipart multipart)
             {
                 return Process(multipart, subjectPrefix, input, errorBox);
@@ -317,6 +342,7 @@ namespace OpenPgpMailProxy
             }
             else
             {
+                _context.Log.Warning("Inbound: Unkonwn data returned");
                 return input;
             }
         }

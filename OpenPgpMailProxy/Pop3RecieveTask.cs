@@ -25,7 +25,7 @@ namespace OpenPgpMailProxy
                     {
                         var envelope = new Envelope(Guid.NewGuid().ToString(), message);
                         mailbox.Enqueue(envelope);
-                        Console.Error.WriteLine("Mail received from POP3");
+                        _context.Log.Notice("POP3 client: mail recieved");
                     }
                     client.DeleteMessages(0, count);
                     client.Disconnect(true);
@@ -35,6 +35,7 @@ namespace OpenPgpMailProxy
 
         private void Run(MailboxConfig config)
         {
+            _context.Log.Verbose("POP3 client: querying mailbox {0}", config.Username);
             var mailbox = _context.Mailboxes.Get(config.Username, MailboxType.InboundInput);
             mailbox.Lock();
             try
@@ -49,6 +50,7 @@ namespace OpenPgpMailProxy
 
         public void Run()
         {
+            _context.Log.Info("POP3 client: running task");
             foreach (var user in _context.Config.Mailboxes)
             {
                 Run(user);

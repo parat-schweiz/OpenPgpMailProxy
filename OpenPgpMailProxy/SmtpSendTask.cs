@@ -28,34 +28,36 @@ namespace OpenPgpMailProxy
                 }
                 catch (Exception exception)
                 {
-                    Console.Error.WriteLine("SMTP failed: {0}", exception.Message);
+                    _context.Log.Warning("SMTP client: sending failed caused by ", exception.Message);
                     return false;
                 }
                 try
                 {
                     client.Send(envelope.Message);
-                    Console.Error.WriteLine("Mail sent via SMTP");
+                    _context.Log.Info("SMTP client: mail sent");
                     return true;
                 }
                 catch (SmtpCommandException exception)
-                { 
+                {
                     switch (exception.StatusCode)
                     {
                         case SmtpStatusCode.InsufficientStorage:
                         case SmtpStatusCode.ExceededStorageAllocation:
                             SendError(envelope, errorBox, "Message delivery failed due to insufficient storage.");
+                            _context.Log.Info("SMTP client: sending not possible caused by ", exception.StatusCode);
                             return true;
                         case SmtpStatusCode.MailboxUnavailable:
                             SendError(envelope, errorBox, "Message delivery failed due to mailbox unavailable.");
+                            _context.Log.Info("SMTP client: sending not possible caused by ", exception.StatusCode);
                             return true;
                         default:
-                            Console.Error.WriteLine("SMTP failed: {0}", exception.Message);
+                            _context.Log.Warning("SMTP client: sending failed caused by ", exception.Message);
                             return false;
                     }
                 }
                 catch (Exception exception)
                 {
-                    Console.Error.WriteLine("SMTP failed: {0}", exception.Message);
+                    _context.Log.Warning("SMTP client: sending failed caused by ", exception.Message);
                     return false;
                 }
             }
@@ -93,6 +95,7 @@ namespace OpenPgpMailProxy
 
         private void Run(MailboxConfig config)
         {
+            _context.Log.Verbose("SMTP client: sending mails for {0}", config.Username);
             var errorBox = _context.Mailboxes.Get(config.Username, MailboxType.InboundOutput);
             errorBox.Lock();
             try
@@ -116,6 +119,7 @@ namespace OpenPgpMailProxy
 
         public void Run()
         {
+            _context.Log.Info("SMTP client: running task");
             foreach (var user in _context.Config.Mailboxes)
             {
                 Run(user);

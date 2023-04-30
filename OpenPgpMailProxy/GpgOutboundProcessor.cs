@@ -12,11 +12,13 @@ namespace OpenPgpMailProxy
 {
     public class GpgOutboundProcessor : IMailProcessor
     {
+        private readonly Context _context;
         private readonly Gpg _gpg;
 
-        public GpgOutboundProcessor(Gpg gpg)
+        public GpgOutboundProcessor(Gpg gpg, Context context)
         {
             _gpg = gpg;
+            _context = context;
         }
 
         private static bool IsValidSignatureKey(GpgKey key)
@@ -106,6 +108,7 @@ namespace OpenPgpMailProxy
 
         private Envelope SignMessage(Envelope input, IMailbox errorBox)
         {
+            _context.Log.Verbose("Outbound: Signing message");
             var sender = input.Message.From.FirstOrDefault() as MailboxAddress;
             var signatureKey = GetSignatureKey(input);
             if (signatureKey != null)
@@ -126,16 +129,19 @@ namespace OpenPgpMailProxy
                     signaturePart.ContentTransferEncoding = ContentEncoding.SevenBit;
                     signedPart.Add(signaturePart);
                     input.Message.Body = signedPart;
+                    _context.Log.Notice("Outbound: Signed message returned");
                     return input;
                 }
                 else
                 {
+                    _context.Log.Warning("Outbound: Signature failed caused by {0}", result.Information);
                     SendError(input, errorBox, "Signature failed: " + result.Status + "\n\n" + result.Information);
                     return null;
                 }
             }
             else
             {
+                _context.Log.Notice("Outbound: Signature key not found for {0}", sender.Address);
                 return input;
             }
         }
@@ -175,6 +181,7 @@ namespace OpenPgpMailProxy
 
         private Envelope EncryptMessage(Envelope input, IMailbox errorBox)
         {
+            _context.Log.Verbose("Outbound: Encrypting message");
             var sender = input.Message.From.FirstOrDefault() as MailboxAddress;
             var signatureKey = GetSignatureKey(input);
             var recipientIds = GetRecipientIds(input);
@@ -205,16 +212,19 @@ namespace OpenPgpMailProxy
 
                     input.Message.Subject = "...";
                     input.Message.Body = outerEncrypted;
+                    _context.Log.Notice("Outbound: Encrypted message returned.");
                     return input;
                 }
                 else
                 {
+                    _context.Log.Warning("Outbound: Encryption failed caused by {0}", result.Information);
                     SendError(input, errorBox, "Encryption failed: " + result.Status + "\n\n" + result.Information);
                     return null;
                 }
             }
             else
             {
+                _context.Log.Notice("Outbound: Encryption failed caused by no private key available for {0}", sender.Address);
                 SendError(input, errorBox, "Encryption failed: No private key available for " + sender.Address);
                 return null;
             }
@@ -222,9 +232,11 @@ namespace OpenPgpMailProxy
 
         public Envelope Process(Envelope input, IMailbox errorBox)
         {
+            _context.Log.Info("Outbound: Processing mail");
             if (input.Message.Subject.Contains(GpgTags.SubjectTagUnsigned))
             {
                 input.Message.Subject = CleanSubject(input.Message.Subject);
+                _context.Log.Notice("Outbound: Forced unsigned mail returned");
                 return input;
             }
             else if (CanEncrypt(input))
@@ -242,6 +254,7 @@ namespace OpenPgpMailProxy
             }
             else if (MustEncrypt(input))
             {
+                _context.Log.Notice("Outbound: Required encryption not possible");
                 SendError(input, errorBox, "Required encryption not possible");
                 return null;
             }

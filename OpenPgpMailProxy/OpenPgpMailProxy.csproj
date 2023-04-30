@@ -72,6 +72,9 @@
     <Reference Include="MailKit">
       <HintPath>..\packages\MailKit.4.0.0\lib\net48\MailKit.dll</HintPath>
     </Reference>
+    <Reference Include="LogLib">
+      <HintPath>..\packages\ThrowException.CSharpLibs.LogLib.1.0.0\lib\net48\LogLib.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
@@ -87,7 +90,6 @@
     <Compile Include="SmtpServer.cs" />
     <Compile Include="IMailbox.cs" />
     <Compile Include="Envelope.cs" />
-    <Compile Include="MemoryMailQueue.cs" />
     <Compile Include="FolderMailbox.cs" />
     <Compile Include="IMailboxService.cs" />
     <Compile Include="FolderMailboxService.cs" />

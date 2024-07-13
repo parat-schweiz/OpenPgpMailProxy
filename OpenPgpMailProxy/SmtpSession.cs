@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using ThrowException.CSharpLibs.BytesUtilLib;
+using ThrowException.CSharpLibs.LogLib;
 
 namespace OpenPgpMailProxy
 {

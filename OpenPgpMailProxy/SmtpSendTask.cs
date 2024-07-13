@@ -5,6 +5,7 @@ using System.Text;
 using MailKit.Net.Smtp;
 using MimeKit;
 using MimeKit.Text;
+using ThrowException.CSharpLibs.LogLib;
 
 namespace OpenPgpMailProxy
 {

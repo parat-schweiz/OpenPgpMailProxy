@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 using MimeKit;
 using MimeKit.Cryptography;
 using MimeKit.Text;
+using ThrowException.CSharpLibs.LogLib;
 
 namespace OpenPgpMailProxy
 {

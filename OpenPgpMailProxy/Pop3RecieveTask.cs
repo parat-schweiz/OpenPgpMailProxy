@@ -1,5 +1,6 @@
 ﻿using System;
 using MailKit.Net.Pop3;
+using ThrowException.CSharpLibs.LogLib;
 
 namespace OpenPgpMailProxy
 {

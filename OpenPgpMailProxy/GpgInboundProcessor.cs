@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using MimeKit;
+using ThrowException.CSharpLibs.LogLib;
 
 namespace OpenPgpMailProxy
 {

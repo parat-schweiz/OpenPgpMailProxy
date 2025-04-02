@@ -89,17 +89,11 @@ namespace OpenPgpMailProxy
             }
         }
 
-        private void ProcessAuth(Queue<string> arguments)
+        private void ProcessAuthPlain(Queue<string> arguments)
         {
-            if (arguments.Count < 2)
+            if (arguments.Count < 1)
             {
                 WriteLine("501 argument missing");
-                return;
-            }
-
-            if (arguments.Dequeue() != "PLAIN")
-            {
-                WriteLine("504 method not implemented");
                 return;
             }
 
@@ -122,6 +116,56 @@ namespace OpenPgpMailProxy
             else
             {
                 WriteLine("535 invalid credentials");
+            }
+        }
+
+        private string Base64(string value)
+        {
+            return Convert.ToBase64String(Encoding.ASCII.GetBytes(value));
+        }
+
+        private string UnBase64(string value)
+        {
+            return Encoding.ASCII.GetString(Convert.FromBase64String(value));
+        }
+
+        private void ProcessAuthLogin(Queue<string> arguments)
+        {
+            WriteLine("334 " + Base64("Username"));
+            var username = UnBase64(ReadLine());
+            WriteLine("334 " + Base64("Password"));
+            var password = UnBase64(ReadLine());
+
+            if (Authenticate(username, password))
+            {
+                WriteLine("235 authentication successful");
+                _authorized = true;
+            }
+            else
+            {
+                WriteLine("535 invalid credentials");
+            }
+        }
+
+        private void ProcessAuth(Queue<string> arguments)
+        {
+            if (arguments.Count < 1)
+            {
+                WriteLine("501 argument missing");
+                return;
+            }
+
+            switch (arguments.Dequeue())
+            {
+                case "PLAIN":
+                    ProcessAuthPlain(arguments);
+                    break;
+                case "LOGIN":
+                    ProcessAuthLogin(arguments);
+                    break;
+                default:
+                    WriteLine("504 method not implemented");
+                    break;
             }
         }
 

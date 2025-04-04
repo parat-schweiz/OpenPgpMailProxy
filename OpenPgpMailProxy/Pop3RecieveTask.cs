@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using MailKit.Net.Pop3;
 using ThrowException.CSharpLibs.LogLib;
 
@@ -41,12 +42,61 @@ namespace OpenPgpMailProxy
             Run(config, mailbox);
         }
 
+        private int BackoffMilliseconds(int counter)
+        { 
+            if (counter <= 1)
+            {
+                return 100;
+            }
+            else if (counter <= 2)
+            {
+                return 1000;
+            }
+            else if (counter <= 5)
+            {
+                return 2000;
+            }
+            else
+            {
+                return 3000;
+            }
+        }
+
+        private void Retry(Action action)
+        {
+            int counter = 1;
+            while (true)
+            { 
+                try
+                {
+                    action();
+                    return;
+                }
+                catch (Exception exception)
+                {
+                    if (counter > 10)
+                    {
+                        _context.Log.Warning(exception.Message);
+                        Thread.Sleep(BackoffMilliseconds(counter));
+                        _context.Log.Warning("Retry {0}", counter);
+                    }
+                    else
+                    {
+                        _context.Log.Error("Counter exhausted. Error:");
+                        _context.Log.Error(exception.ToString());
+                        return;
+                    }
+                    counter++;
+                }
+            }
+        }
+
         public void Run()
         {
             _context.Log.Info("POP3 client: running task");
             foreach (var user in _context.Config.Mailboxes)
             {
-                Run(user);
+                Retry(() => Run(user));
             }
         }
     }

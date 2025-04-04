@@ -26,7 +26,7 @@ namespace OpenPgpMailProxy
                 {
                     task.Run();
                 }
-                Thread.Sleep(3000);
+                Thread.Sleep(15000);
             }
         }
 

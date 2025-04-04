@@ -106,8 +106,7 @@ namespace OpenPgpMailProxy
             else
             {
                 _context.Log.Verbose("Inbound: Simple secured body");
-                input.Message.Body = body;
-                return input;
+                return ProcessSecuredBody(body, subjectPrefix, input, errorBox);
             }
         }
 
@@ -209,8 +208,15 @@ namespace OpenPgpMailProxy
                 case "encrypted":
                     return ProcessEncrypted(body, subjectPrefix, input, errorBox);
                 default:
-                    AutoKeyImport(input.Message.Body);
-                    return input;
+                    if (HasGpgAttachment(body))
+                    {
+                        _context.Log.Verbose("Inbound: Processing OpenPGP attachment");
+                        return ProcessGpgAttachment(input, body, subjectPrefix, errorBox);
+                    }
+                    else
+                    {
+                        return ProcessSecuredBody(body, subjectPrefix, input, errorBox);
+                    }
             }
         }
 
@@ -248,6 +254,85 @@ namespace OpenPgpMailProxy
             return input;
         }
 
+        private Envelope ProcessGpgAttachment(Envelope input, Multipart body, string subjectPrefix, IMailbox errorBox)
+        {
+            var gpgAttachements = body.Where(IsGpgAttachment);
+            switch (gpgAttachements.Count())
+            {
+                case 0:
+                    _context.Log.Warning("Inbound: GPG attachment not found.");
+                    return ProcessSecuredBody(body, subjectPrefix, input, errorBox);
+                case 1:
+                    return ProcessGpgAttachment(input, gpgAttachements.Single(), subjectPrefix, errorBox);
+                default:
+                    _context.Log.Warning("Inbound: Multiple GPG attachments found.");
+                    return ProcessSecuredBody(body, subjectPrefix, input, errorBox);
+            }
+        }
+
+        private Envelope ProcessGpgAttachment(Envelope input, MimeEntity gpgAttachment, string subjectPrefix, IMailbox errorBox)
+        {
+            var bytes = GetAttachementBytes(gpgAttachment);
+            var result = _gpg.Decrypt(bytes, out byte[] output);
+            if (result.Status == GpgStatus.Success)
+            {
+                _context.Log.Notice("Inbound: Mail decrypted");
+                subjectPrefix += GpgTags.SubjectTagEncrypted;
+                if (TryLoadMime(output, out MimeEntity entity))
+                {
+                    if (!string.IsNullOrEmpty(result.Signer))
+                    {
+                        var trust = GetTrust(result.Signer, input.Message.From.First() as MailboxAddress);
+                        subjectPrefix += GetSignedTrustTag(trust);
+                    }
+
+                    return Process(entity, subjectPrefix, input, errorBox);
+                }
+                else
+                {
+                    var text = new TextPart("plain");
+                    text.Content = new MimeContent(new MemoryStream(output));
+                    input.Message.Body = text;
+                    input.Message.Subject = subjectPrefix + input.Message.Subject;
+                    return input;
+                }
+            }
+            _context.Log.Warning("Inbound: Cannot decrypt mail");
+            input.Message.Subject = subjectPrefix + input.Message.Subject;
+            return input;
+        }
+
+        private Envelope ProcessGpgAttachment(Envelope input, string subjectPrefix, IMailbox errorBox)
+        {
+            var gpgAttachements = input.Message.Attachments.Where(IsGpgAttachment);
+            switch (gpgAttachements.Count())
+            {
+                case 0:
+                    _context.Log.Warning("Inbound: GPG attachment not found.");
+                    return input;
+                case 1:
+                    return ProcessGpgAttachment(input, gpgAttachements.Single(), subjectPrefix, errorBox);
+                default:
+                    _context.Log.Warning("Inbound: Multiple GPG attachments found.");
+                    return input;
+            }
+        }
+
+        private bool IsGpgAttachment(MimeEntity mimeEntity)
+        {
+            return mimeEntity?.ContentDisposition?.FileName == "encrypted.asc";
+        }
+
+        private bool HasGpgAttachment(MimeMessage message)
+        {
+            return message.Attachments.Any(IsGpgAttachment);
+        }
+
+        private bool HasGpgAttachment(Multipart message)
+        {
+            return message.Any(IsGpgAttachment);
+        }
+
         private Envelope Process(MimePart body, string subjectPrefix, Envelope input, IMailbox errorBox)
         {
             AutoKeyImport(input.Message.Body);
@@ -281,6 +366,12 @@ namespace OpenPgpMailProxy
                     }
                 }
             }
+            else if (HasGpgAttachment(input.Message))
+            {
+                _context.Log.Verbose("Inbound: Processing OpenPGP attachment");
+                ProcessGpgAttachment(input, subjectPrefix, errorBox);
+            }
+
             input.Message.Subject = subjectPrefix + input.Message.Subject;
             AutoKeyImport(input.Message.Body);
             _context.Log.Verbose("Inbound: Unsecured data returned");
@@ -321,6 +412,15 @@ namespace OpenPgpMailProxy
             }
         }
 
+        private byte[] GetAttachementBytes(MimeEntity attachment)
+        {
+            using (var stream = new MemoryStream())
+            {
+                attachment.WriteTo(stream);
+                return stream.ToArray();
+            }
+        }
+
         private byte[] GetPartBytes(MimeEntity part)
         {
             using (var stream = new MemoryStream())
@@ -344,7 +444,7 @@ namespace OpenPgpMailProxy
             else
             {
                 _context.Log.Warning("Inbound: Unkonwn data returned");
-                return input;
+                return ProcessSecuredBody(body, subjectPrefix, input, errorBox);
             }
         }
 

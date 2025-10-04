@@ -1,0 +1,6 @@
+Package: openpgpmailproxy
+Version: {{VERSION}}
+Architecture: amd64
+Maintainer: Stefan Thoeni <stefan@savvy.ch>
+Description: An OpenPGP mail proxy service
+Depends: mono-devel

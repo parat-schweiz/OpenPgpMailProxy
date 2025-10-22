@@ -61,6 +61,7 @@ namespace OpenPgpMailProxy
 
         private void AutoKeyImport(MimePart body)
         {
+            if (body.Content == null) return;
             var bytes = GetContentBytes(body.Content);
             if ((body.ContentType.MediaType == "application") &&
                 (body.ContentType.MediaSubtype == "pgp-keys"))
@@ -335,6 +336,12 @@ namespace OpenPgpMailProxy
 
         private Envelope Process(MimePart body, string subjectPrefix, Envelope input, IMailbox errorBox)
         {
+            if (body.Content == null)
+            {
+                _context.Log.Verbose("Inbound: Empty data returned");
+                return input;
+            }
+
             AutoKeyImport(input.Message.Body);
             var bytes = GetContentBytes(body.Content);
             if (IsGpgData(bytes))
